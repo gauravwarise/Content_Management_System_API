@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import make_password
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.db.models import Q
 
 
 class UserRegistrationView(APIView):
@@ -19,7 +20,7 @@ class UserRegistrationView(APIView):
     def post(self, request):
         try:
             data = request.data
-            response = {"status": "success", "data": "", "http_status": HTTP_201_CREATED} 
+            response = {"status": "success", "data": "", "message":"", "http_status": HTTP_201_CREATED}
             serializer = UserSerializer(data=data)
 
             if serializer.is_valid():
@@ -28,14 +29,17 @@ class UserRegistrationView(APIView):
 
                 serializer.save()
                 response['status'] = "success"
-                response["data"] = "Registration Seccessfully!!!"
+                response['data'] = serializer.data
+                response["message"] = "Registration Seccessfully!!!"
             else:
                 response["status"] =   "error"
+                response["message"] = "Registration Failed!!!"
                 response["http_status"] = HTTP_400_BAD_REQUEST
                 response["data"] = serializer.errors
 
         except Exception as e:
             response["status"] = "error"
+            response["message"] = "Registration Failed!!!"
             response["http_status"] = HTTP_400_BAD_REQUEST
             response["data"] = str(e)
 
@@ -47,7 +51,7 @@ class UserLoginView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
-        response = {"status": "success", "data": "", "http_status":HTTP_200_OK}
+        response = {"status": "success", "data": "", "message":"", "http_status": HTTP_201_CREATED}
         email = request.data.get("email")
         password = request.data.get("password")
 
@@ -61,7 +65,7 @@ class UserLoginView(APIView):
                 access_token = str(refresh.access_token)
                 response['access_token'] = access_token
                 response['status'] = "success"
-                response['data'] = "logged in successfully"
+                response['message'] = "logged in successfully"
 
                 resp = JsonResponse(response, status=response.get(
                             'httpstatus', HTTP_200_OK))
@@ -69,18 +73,18 @@ class UserLoginView(APIView):
                 return resp 
             else:
                 response['status'] = "failed"
-                response['data'] = "invalid credentials"
+                response['message'] = "invalid credentials"
                 response['http_status'] = HTTP_400_BAD_REQUEST
         else:
             response["status"] = "error"
             response["http_status"] = HTTP_400_BAD_REQUEST
-            response["data"] = "email and password are required"
+            response["message"] = "email and password are required"
 
         return Response(response, status=response.get('http_status',HTTP_200_OK))
 
 class UserLogoutView(APIView):
     def get(self, request):
-        response = {"status": "success", "data": "", "http_status":HTTP_200_OK}
+        response = {"status": "success", "data": "", "message":"", "http_status": HTTP_201_CREATED}
         try:
             logout(request)         
             request.session.clear()
@@ -99,9 +103,19 @@ class UserLogoutView(APIView):
 class ContentItems(APIView):
     def get(self, request):
         response = {"status": "success", "data": "", "message":"", "http_status": HTTP_201_CREATED}
-        username = request.user
-        if username.is_superuser ==False:
-            content_items = ContentItem.objects.filter(author=username)
+        user = request.user
+        if user.is_superuser ==False:
+            search_item = request.query_params.get('search',None)
+            if search_item:
+                content_items = ContentItem.objects.filter(
+                    Q(title__icontains=search_item) |
+                    Q(body__icontains=search_item) |
+                    Q(summary__icontains=search_item) |
+                    Q(category__icontains=search_item),
+                    author=user
+                )
+            else:
+                content_items = ContentItem.objects.filter(author=user)
             serializer = ContentItemSerializer(content_items, many=True)
             if serializer.data:
                 response["data"]=serializer.data
@@ -136,24 +150,27 @@ class ContentItems(APIView):
 
 
     def patch(self, request, pk):
-        response = {"status": "success", "data": "", "http_status": HTTP_201_CREATED}
+        response = {"status": "success", "data": "", "message":"", "http_status": HTTP_201_CREATED}
         username = request.user
         if username.is_superuser ==False:
             content_item = ContentItem.objects.get(id=pk)
             serializer = ContentItemSerializer(content_item, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
+                response["message"]="Data update successfully"
                 response["data"]=serializer.data
-                return Response(serializer.data)
+                return Response(response, status=response.get('http_status',HTTP_200_OK))
             else:
+                response["message"]="Failed to update"
                 response["data"]=serializer.errors
-            return Response(response, status=response.get('http_status',HTTP_200_OK))
+            return Response(response, status=response.get('http_status',HTTP_400_BAD_REQUEST))
+        response["message"]="Failed to update"
         response["data"]="error"
-        return Response(response, status=response.get('http_status',HTTP_200_OK))
+        return Response(response, status=response.get('http_status',HTTP_400_BAD_REQUEST))
 
 
     def delete(self, request, pk):
-        response = {"status": "success", "data": "", "http_status": HTTP_201_CREATED}
+        response = {"status": "success", "data": "", "message":"", "http_status": HTTP_201_CREATED}
         username = request.user
         if username.is_superuser==False:
             try:
@@ -165,10 +182,12 @@ class ContentItems(APIView):
             serializer = ContentItemSerializer(content_item, data=request.data, partial=True)
             content_item.delete()
             if serializer.is_valid():
-                response["data"]=serializer.data
-                return Response(serializer.data)
+                response["message"]="Data has been deleted"
+                return Response(response, status=response.get('http_status',HTTP_200_OK))
             else:
                 response["data"]=serializer.errors
+                response["message"]="Failed to delete"
             return Response(response, status=response.get('http_status',HTTP_200_OK))
+        response["message"]="Failed to delete"
         response["data"]="error"
         return Response(response, status=response.get('http_status',HTTP_200_OK))
