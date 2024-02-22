@@ -33,7 +33,9 @@ Djangorestframework
     python manage.py seed_admin
 
 credentials for admin login 
+
 email=admin@example.com
+
 password=admin
 
 
