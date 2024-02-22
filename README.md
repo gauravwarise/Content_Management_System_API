@@ -3,9 +3,9 @@
 This Django project is a Content Management System (CMS) API that provides the backend functionality for managing and organizing content. The system caters to two types of users: admin and author. Admin users are pre-seeded into the system, while authors can register and log in using their email addresses.Author can create, view, edit and delete contents created by him only.Users can search content by matching terms in title, body, summary and categories
 
 ## Prerequisites
-Python 3.x
+Python 
 
-Django 3.x
+Django 
 
 Djangorestframework
 
